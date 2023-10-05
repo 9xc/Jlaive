@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using static Jlaive.Utils;
+using static Crybat.Utils;
 
-namespace Jlaive
+namespace Crybat
 {
     public class Obfuscator
     {
@@ -32,7 +32,7 @@ namespace Jlaive
                         sc += c;
                         continue;
                     }
-                    if (c == ' ' && invar)
+                    if ((c == ' ' || c == '\'' || c == '.') && invar)
                     {
                         invar = false;
                         sc += c;
@@ -63,8 +63,7 @@ namespace Jlaive
             {
                 ret += setlines[i];
                 int r = rng.Next(0, 2);
-                if (r == 0 || i == setlines.Count - 1) ret += Environment.NewLine;
-                else ret += " & ";
+                ret += Environment.NewLine;
             }
 
             string varcalls = string.Empty;

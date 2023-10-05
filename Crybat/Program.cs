@@ -4,7 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace Jlaive
+namespace Crybat
 {
     internal static class Program
     {
@@ -17,7 +17,7 @@ namespace Jlaive
             string path = Process.GetCurrentProcess().MainModule.FileName;
             if (path.IndexOf(Path.GetTempPath(), StringComparison.OrdinalIgnoreCase) == 0)
             {
-                MessageBox.Show("Jlaive cannot be run from a ZIP file! Please extract before running.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Crybat cannot be run from a ZIP file! Please extract before running.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 Environment.Exit(1);
             }
             if (!Directory.Exists(AppDomain.CurrentDomain.BaseDirectory + "\\bin")) Directory.CreateDirectory(AppDomain.CurrentDomain.BaseDirectory + "\\bin");

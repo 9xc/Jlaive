@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 
-namespace Jlaive
+namespace Crybat
 {
     public enum EncryptionMode
     {
@@ -24,6 +24,16 @@ namespace Jlaive
             stream.Dispose();
             byte[] ret = ms.ToArray();
             ms.Dispose();
+            return ret;
+        }
+
+        public static string GetEmbeddedString(string name)
+        {
+            Assembly asm = Assembly.GetExecutingAssembly();
+            StreamReader stream = new StreamReader(asm.GetManifestResourceStream(name));
+            string ret = stream.ReadToEnd();
+            stream.Close();
+            stream.Dispose();
             return ret;
         }
 
